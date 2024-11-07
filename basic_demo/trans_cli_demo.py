@@ -1,5 +1,5 @@
 """
-This script creates a CLI demo with transformers backend for the glm-4-9b model,
+This script creates a CLI demo with transformers backend for the glm-4-9b-chat model,
 allowing users to interact with the model through a command-line interface.
 
 Usage:
@@ -10,40 +10,25 @@ Note: The script includes a modification to handle markdown to plain text conver
 ensuring that the CLI interface displays formatted text correctly.
 
 If you use flash attention, you should install the flash-attn and  add attn_implementation="flash_attention_2" in model loading.
+
 """
 
-import os
 import torch
 from threading import Thread
-from transformers import AutoTokenizer, StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer, AutoModel
+from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer
 
-MODEL_PATH = os.environ.get('MODEL_PATH', 'THUDM/glm-4-9b-chat')
+MODEL_PATH = "THUDM/glm-4-9b-chat"
 
-## If use peft model.
-# def load_model_and_tokenizer(model_dir, trust_remote_code: bool = True):
-#     if (model_dir / 'adapter_config.json').exists():
-#         model = AutoModel.from_pretrained(
-#             model_dir, trust_remote_code=trust_remote_code, device_map='auto'
-#         )
-#         tokenizer_dir = model.peft_config['default'].base_model_name_or_path
-#     else:
-#         model = AutoModel.from_pretrained(
-#             model_dir, trust_remote_code=trust_remote_code, device_map='auto'
-#         )
-#         tokenizer_dir = model_dir
-#     tokenizer = AutoTokenizer.from_pretrained(
-#         tokenizer_dir, trust_remote_code=trust_remote_code, use_fast=False
-#     )
-#     return model, tokenizer
+# trust_remote_code=True is needed if you using with `glm-4-9b-chat`
+# Not use if you using with `glm-4-9b-chat-hf`
+# both tokenizer and model should consider with this issue.
 
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH,trust_remote_code=True)
-
-model = AutoModel.from_pretrained(
-    MODEL_PATH,
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_PATH, # attn_implementation="flash_attention_2", # Use Flash Attention
+    torch_dtype=torch.bfloat16,  # using flash-attn must use bfloat16 or float16
     trust_remote_code=True,
-    # attn_implementation="flash_attention_2", # Use Flash Attention
-    # torch_dtype=torch.bfloat16, #using flash-attn must use bfloat16 or float16
     device_map="auto").eval()
 
 
@@ -83,6 +68,7 @@ if __name__ == "__main__":
             messages,
             add_generation_prompt=True,
             tokenize=True,
+            return_dict=True,
             return_tensors="pt"
         ).to(model.device)
         streamer = TextIteratorStreamer(
@@ -92,7 +78,8 @@ if __name__ == "__main__":
             skip_special_tokens=True
         )
         generate_kwargs = {
-            "input_ids": model_inputs,
+            "input_ids": model_inputs["input_ids"],
+            "attention_mask": model_inputs["attention_mask"],
             "streamer": streamer,
             "max_new_tokens": max_length,
             "do_sample": True,

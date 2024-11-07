@@ -1,25 +1,21 @@
+"""
+Note:
+    Using with glm-4-9b-chat-hf will require `transformers>=4.46.0".
+"""
 import argparse
 import time
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, BitsAndBytesConfig
 import torch
 from threading import Thread
 
-MODEL_PATH = 'THUDM/glm-4-9b-chat'
+MODEL_PATH = 'THUDM/glm-4-9b-chat-hf'
 
 
 def stress_test(token_len, n, num_gpu):
     device = torch.device(f"cuda:{num_gpu - 1}" if torch.cuda.is_available() and num_gpu > 0 else "cpu")
-    tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_PATH,
-        trust_remote_code=True,
-        padding_side="left"
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_PATH,
-        trust_remote_code=True,
-        torch_dtype=torch.bfloat16
-    ).to(device).eval()
-    
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, paddsing_side="left")
+    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, torch_dtype=torch.bfloat16).to(device).eval()
+
     # Use INT4 weight infer
     # model = AutoModelForCausalLM.from_pretrained(
     #     MODEL_PATH,
